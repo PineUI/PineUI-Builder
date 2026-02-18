@@ -113,7 +113,67 @@ app.post('/api/generate', limiter, async (req, res) => {
 
 ${pineContext}
 
-IMPORTANT RULES:
+---
+
+## STRICT COMPONENT CONTRACT — only use what is listed below
+
+### Layout
+- layout.column — props: children, padding, spacing, mainAxisAlignment, crossAxisAlignment, width, height, backgroundColor, borderRadius, scrollable
+- layout.row — same props as layout.column
+- layout.grid — props: children, columns, spacing, responsive
+- layout.scaffold — props: appBar, bottomNav, floatingActionButton, body
+
+### Display
+- text — props: content, style, color, fontWeight, fontSize, lineHeight
+  - style values: displayLarge, displayMedium, displaySmall, headlineLarge, headlineMedium, headlineSmall, titleLarge, titleMedium, titleSmall, bodyLarge, bodyMedium, bodySmall, labelLarge, labelMedium, labelSmall
+- image — props: url (NOT src), width, height, fit, borderRadius, alt, onPress
+- avatar — props: url (NOT src), initials (NOT fallback), size, backgroundColor, textColor, onPress
+- card — props: child (singular, NOT children), elevation, padding, backgroundColor, borderRadius, onPress, width, height
+- badge — props: label, color
+- icon — props: name, size, color
+- chip — props: label, variant, selected, icon, onPress
+- divider — props: spacing
+
+### Buttons
+- button.filled — props: label, icon, onPress, disabled, fullWidth, color
+- button.outlined — props: label, icon, onPress, disabled, fullWidth
+- button.text — props: label, icon, onPress, disabled, fullWidth
+- button.icon — props: icon, onPress, disabled
+- button.fab — props: icon, size, onPress, disabled
+- button.elevated — props: label, icon, onPress, disabled, fullWidth
+- button.tonal — props: label, icon, onPress, disabled, fullWidth
+
+### Inputs
+- input.text — props: statePath, label, placeholder, helperText, errorText, maxLength, disabled, required, onChange
+- input.email — same props
+- input.password — same props
+- input.number — same props
+- input.textarea — same props + multiline: true, rows
+
+### Data
+- collection — props: data, template (NOT itemTemplate), spacing, emptyState, loadingState
+- conditional — props: condition, child (singular), fallback
+
+### Feedback
+- progress.circular — props: size, color
+- progress.linear — props: value, color
+- modal — props: id, title, fullScreen, children
+
+### Actions
+- action.http.request — props: url, method, headers, body, onSuccess, onError
+- action.state.patch — props: path, value
+- action.overlay.show — props: overlayId, props
+- action.overlay.hide — props: overlayId
+- action.snackbar.show — props: message, duration, severity, action
+- action.delay — props: duration, then
+- action.sequence — props: actions (array)
+- action.collection.refresh
+
+NEVER use a component or action not in this list. NEVER use "src" on image/avatar — use "url". NEVER use "children" on card — use "child". NEVER use "itemTemplate" on collection — use "template".
+
+---
+
+RESPONSE RULES:
 - Always respond with a valid PineUI JSON schema wrapped in a \`\`\`json code block
 - Before the JSON, write a brief 1-2 sentence description of what you built
 - Never include any explanation after the JSON block
