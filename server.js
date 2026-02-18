@@ -248,16 +248,15 @@ function writeManifest(data) {
 }
 
 app.post('/api/projects', (req, res) => {
-  const { schema, name, prompt } = req.body;
+  const { schema, name, prompt, id: requestedId } = req.body;
   if (!schema || typeof schema !== 'object') {
     return res.status(400).json({ error: 'Invalid schema' });
   }
 
-  // Content-based hash — same schema never duplicates
-  const id = createHash('sha256')
-    .update(JSON.stringify(schema))
-    .digest('hex')
-    .slice(0, 10);
+  // Use caller-supplied session ID if valid, otherwise content hash
+  const id = (requestedId && /^[a-f0-9]{10}$/.test(requestedId))
+    ? requestedId
+    : createHash('sha256').update(JSON.stringify(schema)).digest('hex').slice(0, 10);
 
   const filePath = join(SCHEMAS_DIR, `${id}.json`);
   writeFileSync(filePath, JSON.stringify(schema, null, 2), 'utf8');
@@ -316,6 +315,11 @@ app.get('/api/projects/load/:filename', (req, res) => {
   } catch {
     res.status(500).json({ error: 'Failed to parse schema file' });
   }
+});
+
+// SPA route — /projects/:id serves index.html (frontend handles the load)
+app.get('/projects/:id', (req, res) => {
+  res.sendFile(join(__dirname, 'public', 'index.html'));
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

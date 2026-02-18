@@ -850,6 +850,58 @@
     let conversationHistory = [];
     let isGenerating = false;
     let activeTab = 'view';
+    let currentProjectId = null; // stable session ID, set on first auto-save
+
+    // Generate a random 10-char hex ID for a new session
+    function generateSessionId() {
+      return Array.from(crypto.getRandomValues(new Uint8Array(5)))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+
+    // Auto-save silently and update the browser URL
+    async function autoSave(schema, prompt) {
+      if (!currentProjectId) currentProjectId = generateSessionId();
+      try {
+        await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: currentProjectId,
+            schema,
+            name: prompt.slice(0, 80),
+            prompt,
+          }),
+        });
+        history.pushState({ id: currentProjectId }, '', `/projects/${currentProjectId}`);
+        document.getElementById('save-btn').style.display = 'flex';
+      } catch (err) {
+        console.warn('Auto-save failed:', err.message);
+      }
+    }
+
+    // On page load — if URL is /projects/:id, load that project
+    (async function bootLoad() {
+      const match = location.pathname.match(/^\/projects\/([a-f0-9]{10})$/);
+      if (!match) return;
+      const id = match[1];
+      try {
+        const res = await fetch(`/api/projects/load/${id}`);
+        if (!res.ok) return;
+        const schema = await res.json();
+        currentSchema = schema;
+        currentProjectId = id;
+        renderPineUI(schema);
+        updateCodeView(schema);
+        document.getElementById('save-btn').style.display = 'flex';
+        document.getElementById('copy-btn').style.display = 'flex';
+        document.getElementById('preview-label').textContent = id;
+        document.getElementById('preview-empty').style.display = 'none';
+        setTab('view');
+      } catch (err) {
+        console.warn('Failed to boot-load project:', err.message);
+      }
+    })();
 
     const chatMessages = document.getElementById('chat-messages');
     const chatEmpty = document.getElementById('chat-empty');
@@ -1023,7 +1075,9 @@
     function newProject() {
       currentSchema = null;
       currentPrompt = '';
+      currentProjectId = null;
       conversationHistory = [];
+      history.pushState({}, '', '/');
       // Reset chat
       const msgs = document.getElementById('chat-messages');
       const empty = document.getElementById('chat-empty');
@@ -1137,10 +1191,9 @@
         const res = await fetch('/api/projects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ schema: currentSchema, name, prompt: currentPrompt }),
+          body: JSON.stringify({ id: currentProjectId, schema: currentSchema, name, prompt: currentPrompt }),
         });
         const project = await res.json();
-        // Show snackbar-style toast with the ID
         showToast(`Saved! ID: ${project.id}`, project.url);
       } catch (err) {
         showToast('Failed to save: ' + err.message);
@@ -1265,7 +1318,7 @@
 
           currentPrompt = prompt;
           previewLabel.textContent = prompt.length > 50 ? prompt.slice(0, 50) + '...' : prompt;
-          document.getElementById('save-btn').style.display = 'flex';
+          autoSave(schema, prompt);
 
           conversationHistory.push({ role: 'user', content: prompt });
           conversationHistory.push({ role: 'assistant', content: fullText });
