@@ -9,14 +9,16 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SCHEMAS_DIR = join(__dirname, 'public', 'schemas');
-const DATA_DIR    = join(__dirname, 'data');
-const MANIFEST    = join(DATA_DIR, 'projects.json');
-const PROMPT_FILE = join(DATA_DIR, 'PROMPT.md');
-const DESIGN_FILE = join(DATA_DIR, 'DESIGN.md');
+const SCHEMAS_DIR  = join(__dirname, 'public', 'schemas');
+const PINEUI_DIR   = join(__dirname, 'public', 'pineui');
+const DATA_DIR     = join(__dirname, 'data');
+const MANIFEST     = join(DATA_DIR, 'projects.json');
+const PROMPT_FILE  = join(DATA_DIR, 'PROMPT.md');
+const DESIGN_FILE  = join(DATA_DIR, 'DESIGN.md');
 
 function ensureDirs() {
   if (!existsSync(SCHEMAS_DIR)) mkdirSync(SCHEMAS_DIR, { recursive: true });
+  if (!existsSync(PINEUI_DIR))  mkdirSync(PINEUI_DIR,  { recursive: true });
   if (!existsSync(DATA_DIR))    mkdirSync(DATA_DIR,    { recursive: true });
   if (!existsSync(MANIFEST))    writeFileSync(MANIFEST, '[]', 'utf8');
 }
@@ -105,11 +107,32 @@ async function getPineUIVersion() {
     pineUIVersion   = version;
     pineUIVersionAt = now;
     log.ok(`PineUI version resolved — ${c.cyan}${version}${c.reset}`);
+    downloadPineUIBundle(version).catch(e => log.warn(`Bundle download failed: ${e.message}`));
   } catch (err) {
     log.warn(`npm version fetch failed (${err.message}) — ${pineUIVersion ? `using ${pineUIVersion}` : 'falling back to @latest'}`);
     if (!pineUIVersion) pineUIVersion = 'latest';
   }
   return pineUIVersion;
+}
+
+async function downloadPineUIBundle(version) {
+  const jsFile  = join(PINEUI_DIR, `pineui-${version}.js`);
+  const cssFile = join(PINEUI_DIR, `pineui-${version}.css`);
+
+  const missing = !existsSync(jsFile) || !existsSync(cssFile);
+  if (!missing) return; // already cached for this version
+
+  const base = `https://unpkg.com/@pineui/react@${version}/dist`;
+  log.info(`Downloading PineUI ${c.cyan}v${version}${c.reset} bundle from unpkg...`);
+
+  const [js, css] = await Promise.all([
+    fetchUrl(`${base}/pineui.standalone.js`),
+    fetchUrl(`${base}/style.css`),
+  ]);
+
+  writeFileSync(jsFile,  js,  'utf8');
+  writeFileSync(cssFile, css, 'utf8');
+  log.ok(`PineUI bundle cached — ${c.dim}${js.length + css.length} bytes${c.reset}`);
 }
 
 async function getPineUIPrompt() {
@@ -276,7 +299,14 @@ app.post('/api/projects', (req, res) => {
 app.get('/api/pineui-version', async (req, res) => {
   try {
     const version = await getPineUIVersion();
-    res.json({ version });
+    const jsFile  = join(PINEUI_DIR, `pineui-${version}.js`);
+    const cssFile = join(PINEUI_DIR, `pineui-${version}.css`);
+    const local   = existsSync(jsFile) && existsSync(cssFile);
+    res.json({
+      version,
+      js:  local ? `/pineui/pineui-${version}.js`  : `https://unpkg.com/@pineui/react@${version}/dist/pineui.standalone.js`,
+      css: local ? `/pineui/pineui-${version}.css` : `https://unpkg.com/@pineui/react@${version}/dist/style.css`,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
