@@ -1,6 +1,6 @@
-# 🌲 PineUI Builder
+# 🍍 PineUI Builder
 
-> AI-powered UI builder — describe interfaces in natural language and get PineUI JSON schemas instantly, rendered in real-time, powered by Claude.
+> AI-powered UI builder — describe interfaces in plain language and get production-quality PineUI JSON schemas instantly, rendered live, powered by Claude.
 
 ![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?style=flat-square&logo=node.js&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-4.x-000000?style=flat-square&logo=express&logoColor=white)
@@ -10,36 +10,60 @@
 
 ---
 
-## What is this?
+## About PineUI
 
-PineUI Builder is a web app that lets you describe a UI in plain language and instantly get a working [PineUI](https://github.com/PineUI/PineUI) JSON schema — both rendered visually and as copyable code.
+> ⚠️ **Alpha Software — Not production-ready**
+>
+> PineUI is under active development. APIs, schema contracts, and component behavior will change without notice. Use for experimentation and feedback only.
 
-Type something like *"a task manager with categories and status badges"* and Claude generates the complete schema, live.
+**[PineUI](https://github.com/PineUI/PineUI)** is a complete protocol and multi-platform SDK for building declarative interfaces rendered from JSON, with centralized governance on the server. Designed to scale to millions of users and be comprehensible by Large Language Models.
+
+🍍 **Why "PineUI"?** In Brazilian Portuguese, we have an expression: *"descascar esse abacaxi"* (literally "peeling this pineapple"), which means solving a tough problem. PineUI helps you peel through the tough challenges of building dynamic, multi-platform UIs.
+
+🚀 **[Try it now](https://pineui.github.io/PineUI/)** · 📖 **[Complete Documentation](https://pineui.github.io/PineUI/documentation.html)**
+
+👨‍💻 **Created by [David Ruiz](https://github.com/wupsbr)** — CPTO at Ingresse, former Director of Engineering at iFood (R$70B+ GMV), CTO at Paraná Banco, and co-founder of ONOVOLAB.
+
+🏢 **Developed by [Luma Ventures](https://lumaventures.com.br)** | CNPJ: 21.951.820/0001-39
+
+---
+
+## What is PineUI Builder?
+
+PineUI Builder is a web app that converts natural language into working [PineUI](https://github.com/PineUI/PineUI) JSON schemas — visually rendered and ready to copy. It's designed to feel like a senior designer and engineer working together: it follows Material Design 3 conventions, uses realistic data, and builds interfaces at the quality level of Linear, Vercel, or Stripe.
+
+Type *"a task manager with categories and status badges"* and get a complete, production-quality schema in seconds.
 
 ---
 
 ## Features
 
-- **Chat interface** — conversational, with context memory across messages
-- **Live streaming** — responses appear token by token, like ChatGPT
-- **Side-by-side preview** — View (rendered PineUI) and Code (JSON) toggle
-- **Copy button** — grab the schema with one click
-- **Rate limiting** — 10 requests/minute per IP to prevent abuse
-- **Heroku-ready** — `Procfile` + `engines` configured out of the box
+- **Conversational chat** — follow-up messages make targeted edits to the existing schema, not regenerate everything
+- **Live streaming** — tokens appear as Claude writes them; JSON previews in Code tab during generation
+- **Side-by-side preview** — View (rendered PineUI) and Code (JSON) toggle with one click
+- **Project persistence** — every generated schema is auto-saved with a stable URL (`/projects/:id`)
+- **Project gallery** — browse, load, and delete past projects from the top bar
+- **SPA routing** — reload `/projects/:id` and the project is restored with full conversation context
+- **AI design guide** — `data/DESIGN.md` injects senior UI/UX designer principles (M3 color system, type scale, spacing grid, SaaS patterns) into every generation
+- **Always latest PineUI** — version resolved from npm registry at startup; bundle downloaded and served from the same origin to avoid CDN/CORS issues
+- **iframe console forwarding** — PineUI render errors appear in the parent DevTools console with `[PineUI]` prefix
+- **Rate limiting** — 10 requests/minute per IP
 
 ---
 
 ## Preview
 
 ```
-┌─────────────────────┬──────────────────────────────┐
-│  🌲 PineUI Builder  │          Preview              │
-├─────────────────────┤  [ View ]  [ Code ]  [ Copy ] │
-│  Chat messages...   ├──────────────────────────────┤
-│                     │                              │
-│                     │   Rendered PineUI schema     │
-│  [  Type a prompt ] │   or JSON code view          │
-└─────────────────────┴──────────────────────────────┘
+┌─────────────────────────┬──────────────────────────────────────┐
+│  🍍 PineUI Builder      │ [Projects]          [View] [Code] [⎘] │
+├─────────────────────────┼──────────────────────────────────────┤
+│                         │                                      │
+│  ┌───────────────────┐  │   Rendered PineUI interface          │
+│  │ AI response       │  │   or live-streaming JSON             │
+│  └───────────────────┘  │                                      │
+│                         │                                      │
+│  [ Type a prompt...  ➤] │                                      │
+└─────────────────────────┴──────────────────────────────────────┘
 ```
 
 ---
@@ -48,10 +72,11 @@ Type something like *"a task manager with categories and status badges"* and Cla
 
 | Layer | Technology |
 |---|---|
-| Server | Node.js + Express |
-| AI | Anthropic Claude (`claude-sonnet-4-6`) via SSE streaming |
+| Server | Node.js + Express (ESM) |
+| AI | Anthropic Claude `claude-sonnet-4-6` via SSE streaming |
 | Frontend | Vanilla JS + Material Design 3 (dark theme) |
-| UI Rendering | [PineUI React](https://github.com/PineUI/PineUI) via CDN |
+| UI Rendering | PineUI React — bundle served locally from `/pineui/` |
+| Persistence | JSON files in `data/` + `public/schemas/` |
 | Rate Limiting | `express-rate-limit` |
 
 ---
@@ -89,18 +114,25 @@ PORT=3000
 ### 4. Run
 
 ```bash
-# Production
-npm start
-
 # Development (auto-reload)
 npm run dev
+
+# Production
+npm start
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
 
+On first start the server will:
+1. Fetch the latest `PROMPT.md` from the PineUI GitHub repo
+2. Resolve the latest `@pineui/react` version from npm
+3. Download and cache the PineUI JS + CSS bundle locally
+
 ---
 
-## Deploying to Heroku
+## Deploying
+
+### Heroku
 
 ```bash
 heroku create your-app-name
@@ -116,10 +148,26 @@ git push heroku main
 ## How it works
 
 1. User types a prompt in the chat
-2. The server fetches the [PineUI PROMPT.md](https://github.com/PineUI/PineUI/blob/main/PROMPT.md) (cached after first request) and sends it as system context to Claude
-3. Claude streams a valid PineUI JSON schema back via SSE
-4. The frontend renders the schema using the PineUI CDN in the View tab
-5. The raw JSON is available in the Code tab
+2. Server fetches `PROMPT.md` from GitHub (cached 5 min, saved locally as fallback) and the `DESIGN.md` guide from disk
+3. System prompt = `PROMPT.md` (PineUI component docs) + `DESIGN.md` (design excellence guide) + response rules
+4. Claude streams a PineUI JSON schema via SSE — the Code tab shows JSON live as it arrives
+5. On completion, the schema is parsed, rendered in the iframe (using the locally-served PineUI bundle), and auto-saved
+6. The project URL updates to `/projects/:id` — shareable and reloadable
+7. Follow-up messages carry the current schema as conversation context so Claude makes incremental edits
+
+---
+
+## AI System Context
+
+The AI receives three layers of context on every request:
+
+| File | Source | Purpose |
+|---|---|---|
+| `data/PROMPT.md` | GitHub (cached 5 min) | PineUI component API — all types, props, actions, bindings |
+| `data/DESIGN.md` | Local | Senior UI/UX designer guide — M3 color roles, type scale, spacing grid, SaaS patterns, anti-patterns |
+| Response rules | Hardcoded | Output format, incremental edit behaviour |
+
+To update `DESIGN.md`, edit `data/DESIGN.md` directly and restart the server.
 
 ---
 
@@ -127,14 +175,14 @@ git push heroku main
 
 ### `POST /api/generate`
 
-Generate a PineUI schema from a natural language prompt.
+Generate or edit a PineUI schema.
 
-**Rate limit:** 10 requests per minute per IP.
+**Rate limit:** 10 requests/minute per IP.
 
-**Request body:**
+**Body:**
 ```json
 {
-  "prompt": "A login form with email and password fields",
+  "prompt": "A login form with email and password",
   "history": [
     { "role": "user", "content": "..." },
     { "role": "assistant", "content": "..." }
@@ -142,13 +190,55 @@ Generate a PineUI schema from a natural language prompt.
 }
 ```
 
-**Response:** `text/event-stream` (SSE)
+**Response:** `text/event-stream`
 
 ```
 data: {"text": "Here is a login form..."}
-data: {"text": "```json\n{..."}
+data: {"text": "```json\n{\n  \"schemaVersion\"..."}
 data: [DONE]
 ```
+
+---
+
+### `GET /api/pineui-version`
+
+Returns the resolved PineUI version and local bundle paths.
+
+```json
+{
+  "version": "0.1.7",
+  "js":  "/pineui/pineui-0.1.7.js",
+  "css": "/pineui/pineui-0.1.7.css"
+}
+```
+
+---
+
+### `POST /api/projects`
+
+Save or update a project.
+
+**Body:** `{ schema, name, prompt, id? }`
+
+**Response:** `{ id, name, prompt, createdAt, updatedAt, url }`
+
+---
+
+### `GET /api/projects`
+
+List all saved projects (manifest).
+
+---
+
+### `GET /api/projects/load/:id`
+
+Load a project schema by ID.
+
+---
+
+### `DELETE /api/projects/:id`
+
+Delete a project and its schema file.
 
 ---
 
@@ -156,13 +246,21 @@ data: [DONE]
 
 ```
 PineUI-Builder/
-├── server.js          # Express server + Claude API integration
+├── server.js              # Express server, Claude API, project CRUD
 ├── public/
-│   └── index.html     # Frontend (chat + preview)
-├── .env.example       # Environment variable template
-├── .gitignore         # Keeps .env and node_modules out of git
-├── Procfile           # Heroku process definition
-└── package.json       # Dependencies and scripts
+│   ├── index.html         # Frontend — chat, preview, project gallery
+│   ├── schemas/           # Saved project JSON schemas (gitignored)
+│   └── pineui/            # Locally cached PineUI bundle (gitignored)
+│       ├── pineui-{v}.js
+│       └── pineui-{v}.css
+├── data/
+│   ├── PROMPT.md          # PineUI component docs (fetched from GitHub)
+│   ├── DESIGN.md          # UI/UX excellence guide (committed)
+│   └── projects.json      # Project manifest (gitignored)
+├── .env.example
+├── .gitignore
+├── Procfile
+└── package.json
 ```
 
 ---
@@ -171,16 +269,30 @@ PineUI-Builder/
 
 - `.env` is gitignored — API keys never leave your machine
 - Rate limiting prevents abuse of the Claude API
-- No user data is stored server-side
+- Schema files are served from a safe, sandboxed path (`/schemas/:id`)
+- No user authentication — intended for internal/personal use
 
 ---
 
 ## Related
 
 - [PineUI](https://github.com/PineUI/PineUI) — The Server-Driven UI framework
-- [PineUI Documentation](https://pineui.github.io/PineUI/documentation.html)
 - [Anthropic Claude API](https://docs.anthropic.com)
-- [Material Icons](https://fonts.google.com/icons)
+- [Material Design 3](https://m3.material.io)
+
+---
+
+## Contact
+
+**Commercial Licensing:**
+- 📧 Email: [wupsbr@gmail.com](mailto:wupsbr@gmail.com)
+- 🏢 Company: Luma Ventures Ltda
+- 📋 CNPJ: 21.951.820/0001-39
+
+**Community:**
+- 🐙 GitHub: [github.com/pineui/pineui](https://github.com/pineui/pineui)
+- 🐛 Issues: [github.com/pineui/pineui/issues](https://github.com/pineui/pineui/issues)
+- 💬 Discussions: [github.com/pineui/pineui/discussions](https://github.com/pineui/pineui/discussions)
 
 ---
 
