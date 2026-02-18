@@ -724,10 +724,10 @@
 
     function streamToCodeView(text) {
       const el = document.getElementById('code-content');
-      el.textContent = text;
-      // Auto-scroll code view to bottom while streaming
       const codeView = document.getElementById('code-view');
-      codeView.scrollTop = codeView.scrollHeight;
+      const atBottom = codeView.scrollHeight - codeView.scrollTop - codeView.clientHeight < 32;
+      el.textContent = text;
+      if (atBottom) codeView.scrollTop = codeView.scrollHeight;
     }
 
     // Extract only the JSON portion from streamed text (partial or complete)
