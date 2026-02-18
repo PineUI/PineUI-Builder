@@ -1014,11 +1014,28 @@
     }
 
     function extractJsonFromText(text) {
-      const match = text.match(/```json\s*([\s\S]*?)```/);
-      if (match) {
-        try { return JSON.parse(match[1]); } catch { return null; }
+      // 1. Non-greedy fence match (standard case)
+      const m1 = text.match(/```json\s*([\s\S]*?)```/);
+      if (m1) { try { return JSON.parse(m1[1]); } catch {} }
+
+      // 2. Greedy fence match — handles JSON that contains ``` inside strings
+      const m2 = text.match(/```json\s*([\s\S]*)```/);
+      if (m2) { try { return JSON.parse(m2[1]); } catch {} }
+
+      // 3. Fence opened but never closed (truncated response) — grab everything after ```json
+      const fence = text.indexOf('```json');
+      if (fence !== -1) {
+        const content = text.slice(text.indexOf('\n', fence) + 1);
+        try { return JSON.parse(content); } catch {}
       }
-      try { return JSON.parse(text); } catch { return null; }
+
+      // 4. Bare JSON object/array
+      const trimmed = text.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try { return JSON.parse(trimmed); } catch {}
+      }
+
+      return null;
     }
 
     function extractDescription(text) {
@@ -1328,11 +1345,12 @@
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
+          if (!done) buffer += decoder.decode(value, { stream: true });
+
+          // On stream end, flush remaining buffer; otherwise keep last incomplete line
           const lines = buffer.split('\n');
-          buffer = lines.pop();
+          buffer = done ? '' : (lines.pop() ?? '');
 
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
@@ -1357,6 +1375,8 @@
               }
             } catch {}
           }
+
+          if (done) break;
         }
 
         // Parse and render schema
@@ -1384,8 +1404,15 @@
           conversationHistory.push({ role: 'assistant', content: fullText });
           if (conversationHistory.length > 20) conversationHistory = conversationHistory.slice(-20);
         } else {
-          previewLabel.textContent = 'Could not parse schema';
-          descEl.textContent = fullText || 'No response received.';
+          previewLabel.textContent = 'Parse error';
+          // Keep whatever the live-stream wrote in the code tab (don't overwrite)
+          // Show a clean error in the chat bubble — never dump raw text there
+          const hasContent = fullText.trim().length > 0;
+          descEl.textContent = hasContent
+            ? 'Could not parse the generated schema. Check the Code tab for the raw output and try rephrasing your prompt.'
+            : 'No response received.';
+          // Log to console for debugging
+          console.warn('[PineUI Builder] Schema parse failed. Raw response:', fullText);
         }
 
       } catch (err) {

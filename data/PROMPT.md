@@ -894,7 +894,7 @@ Wait a fixed time in milliseconds. **Must** be used inside `action.sequence`.
 }
 ```
 
-> ⚠️ `action.delay` has no `"then"` field. Always wrap it in `action.sequence`.
+> ⚠�� `action.delay` has no `"then"` field. Always wrap it in `action.sequence`.
 
 ---
 

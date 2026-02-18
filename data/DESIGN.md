@@ -490,7 +490,143 @@ Always use these sources and patterns for realistic data:
 
 ---
 
-## Part 10 — The Final Check
+## Part 10 — Spacing Mistakes That Make UIs Feel Broken
+
+This section addresses the most common spacing errors that make otherwise good schemas look like internal tools instead of polished products.
+
+### The `spacing: 0` Epidemic
+
+**Never set `spacing: 0` on a `layout.column` that contains visible content.** Zero spacing between child components causes visual crowding that makes the UI feel unfinished and hard to scan. The eye needs whitespace to understand where one item ends and the next begins.
+
+```
+❌ WRONG — spacing 0 everywhere:
+layout.column { spacing: 0 }
+  → card (result 1)
+  → divider { spacing: 8 }    ← using dividers to create fake breathing room
+  → card (result 2)
+  → divider { spacing: 8 }
+  → card (result 3)
+
+✅ RIGHT — spacing does the work:
+layout.column { spacing: 12 }  ← cards breathe naturally
+  → card (result 1)
+  → card (result 2)
+  → card (result 3)
+```
+
+### When to Use Dividers vs. Spacing
+
+| Use `divider` | Use `spacing` |
+|---|---|
+| Between rows in a settings list | Between cards in a feed or results list |
+| Between rows in a dense table-style list | Between sections in a column layout |
+| Between items that look nearly identical | Between items with different visual weight |
+| Inside a single card to separate content zones | Between separate cards |
+
+**Rule**: If items have card backgrounds or different visual treatments, use `spacing`. If items are flat (no background) and uniform, use `divider`.
+
+### The Correct Spacing Budget by Context
+
+**Page body** (`layout.scaffold > body`):
+```json
+{ "type": "layout.column", "padding": 16, "spacing": 16 }
+```
+Never `padding: 0, spacing: 0` on the root body — always at least 16 padding.
+
+**Section inside body** (a logical group):
+```json
+{ "type": "layout.column", "padding": 0, "spacing": 12 }
+```
+Sections use spacing between their child items (cards, rows, chips).
+
+**Between major sections** (e.g., filter chips area → results area):
+Use `spacing: 24` on the parent column, or wrap each section with its own `padding`.
+
+**Inside a card**:
+```json
+{ "type": "card", "padding": 16, "child": { "type": "layout.column", "spacing": 8 } }
+```
+Cards always need at least 16dp padding. Inner columns use 8–12 spacing between content rows.
+
+**Chip/filter rows**:
+```json
+{ "type": "layout.row", "spacing": 8 }
+```
+Always 8dp between chips.
+
+### The Outer Body Pattern (Do This Every Time)
+
+```json
+{
+  "type": "layout.scaffold",
+  "appBar": { ... },
+  "body": {
+    "type": "layout.column",
+    "padding": 16,
+    "spacing": 24,
+    "children": [
+      { /* section 1 — e.g. search bar + chips */ },
+      { /* section 2 — e.g. results list */ },
+      { /* section 3 — e.g. pagination */ }
+    ]
+  }
+}
+```
+
+The outer column always has `padding: 16` and `spacing: 24` between major sections. Sections themselves handle their own internal spacing.
+
+### Specific Common Patterns
+
+**Search results / Feed cards:**
+```json
+{
+  "type": "layout.column",
+  "spacing": 12,
+  "children": [
+    { "type": "card", "variant": "elevated", "padding": 16, "child": { ... } },
+    { "type": "card", "variant": "elevated", "padding": 16, "child": { ... } },
+    { "type": "card", "variant": "elevated", "padding": 16, "child": { ... } }
+  ]
+}
+```
+No dividers between cards. Use `spacing: 12` on the parent column.
+
+**Settings rows:**
+```json
+{
+  "type": "card",
+  "variant": "filled",
+  "padding": 0,
+  "child": {
+    "type": "layout.column",
+    "spacing": 0,
+    "children": [
+      { "type": "layout.row", "padding": 16, "children": [ ... ] },
+      { "type": "divider", "spacing": 0 },
+      { "type": "layout.row", "padding": 16, "children": [ ... ] }
+    ]
+  }
+}
+```
+Settings use `divider` because rows are flat and uniform. The rows have `padding: 16` themselves.
+
+**KPI grid:**
+```json
+{
+  "type": "grid",
+  "columns": 2,
+  "spacing": 12,
+  "children": [
+    { "type": "card", "variant": "elevated", "padding": 16, "child": { ... } },
+    { "type": "card", "variant": "elevated", "padding": 16, "child": { ... } }
+  ]
+}
+```
+Grids use `spacing` — never place dividers in a grid.
+
+---
+
+## Part 11 — The Final Check
 
 Before outputting the schema, ask:
 
