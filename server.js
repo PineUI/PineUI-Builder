@@ -13,6 +13,7 @@ const SCHEMAS_DIR = join(__dirname, 'public', 'schemas');
 const DATA_DIR    = join(__dirname, 'data');
 const MANIFEST    = join(DATA_DIR, 'projects.json');
 const PROMPT_FILE = join(DATA_DIR, 'PROMPT.md');
+const DESIGN_FILE = join(DATA_DIR, 'DESIGN.md');
 
 function ensureDirs() {
   if (!existsSync(SCHEMAS_DIR)) mkdirSync(SCHEMAS_DIR, { recursive: true });
@@ -77,41 +78,54 @@ const limiter = rateLimit({
 });
 
 // ── PineUI context ────────────────────────────────────────────────────────────
-let pineUIPrompt = null;
+const PROMPT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+let pineUIPrompt     = null;
+let pineUIPromptAt   = 0;
 
-async function fetchPineUIPrompt() {
+function fetchFromGitHub(url) {
   return new Promise((resolve, reject) => {
-    https.get(
-      'https://raw.githubusercontent.com/PineUI/PineUI/main/PROMPT.md',
-      (res) => {
-        let data = '';
-        res.on('data', (chunk) => (data += chunk));
-        res.on('end', () => resolve(data));
-      }
-    ).on('error', reject);
+    https.get(url, (res) => {
+      let data = '';
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => resolve(data));
+    }).on('error', reject);
   });
 }
 
 async function getPineUIPrompt() {
-  if (!pineUIPrompt) {
-    try {
-      log.info('Fetching PineUI PROMPT.md from GitHub...');
-      pineUIPrompt = await fetchPineUIPrompt();
-      writeFileSync(PROMPT_FILE, pineUIPrompt, 'utf8');
-      log.ok(`PineUI context loaded — ${c.dim}${pineUIPrompt.length} chars${c.reset}`);
-    } catch (err) {
-      if (existsSync(PROMPT_FILE)) {
-        log.warn(`GitHub fetch failed (${err.message}) — using local PROMPT.md`);
-        pineUIPrompt = readFileSync(PROMPT_FILE, 'utf8');
-        log.ok(`PineUI context loaded from disk — ${c.dim}${pineUIPrompt.length} chars${c.reset}`);
-      } else {
-        throw new Error(`Cannot load PineUI context: ${err.message}`);
-      }
+  const now = Date.now();
+  const age = now - pineUIPromptAt;
+
+  if (pineUIPrompt && age < PROMPT_CACHE_TTL) {
+    log.info(`Using cached PROMPT.md ${c.dim}(${pineUIPrompt.length} chars, ${Math.round(age / 1000)}s ago)${c.reset}`);
+    return pineUIPrompt;
+  }
+
+  try {
+    log.info('Fetching PineUI PROMPT.md from GitHub...');
+    const fresh = await fetchFromGitHub('https://raw.githubusercontent.com/PineUI/PineUI/main/PROMPT.md');
+    pineUIPrompt   = fresh;
+    pineUIPromptAt = now;
+    writeFileSync(PROMPT_FILE, fresh, 'utf8');
+    log.ok(`PineUI context loaded — ${c.dim}${pineUIPrompt.length} chars${c.reset}`);
+  } catch (err) {
+    if (pineUIPrompt) {
+      log.warn(`GitHub fetch failed (${err.message}) — keeping in-memory cache`);
+    } else if (existsSync(PROMPT_FILE)) {
+      log.warn(`GitHub fetch failed (${err.message}) — using local PROMPT.md`);
+      pineUIPrompt   = readFileSync(PROMPT_FILE, 'utf8');
+      pineUIPromptAt = now;
+      log.ok(`PineUI context loaded from disk — ${c.dim}${pineUIPrompt.length} chars${c.reset}`);
+    } else {
+      throw new Error(`Cannot load PineUI context: ${err.message}`);
     }
-  } else {
-    log.info(`Using cached PineUI context ${c.dim}(${pineUIPrompt.length} chars)${c.reset}`);
   }
   return pineUIPrompt;
+}
+
+function getDesignGuide() {
+  if (!existsSync(DESIGN_FILE)) return '';
+  return readFileSync(DESIGN_FILE, 'utf8');
 }
 
 // ── Generate endpoint ─────────────────────────────────────────────────────────
@@ -134,56 +148,28 @@ app.post('/api/generate', limiter, async (req, res) => {
   log.info(`Prompt: "${c.bold}${promptPreview}${c.reset}"`);
 
   try {
-    const pineContext = await getPineUIPrompt();
+    const pineContext  = await getPineUIPrompt();
+    const designGuide  = getDesignGuide();
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-    const systemPrompt = `You are an expert PineUI schema generator. Use the following PineUI documentation to generate valid JSON schemas.
-
-${pineContext}
-
----
-
-DESIGN QUALITY STANDARDS — Follow these always:
-
-You are building interfaces at the quality level of Google, Airbnb, Stripe, and Linear. Every schema must feel polished and production-ready.
-
-**Layout & Spacing**
-- Use generous padding: 16–24px inside cards, 24–32px for page padding
-- Use consistent spacing rhythm: prefer 8, 12, 16, 24, 32px gaps
-- Never stack elements without breathing room — spacing between sections: 24–40px
-- Group related items visually; separate unrelated sections with dividers or whitespace
-
-**Typography Hierarchy**
-- Every screen needs a clear visual hierarchy: one dominant headline, supporting body text, labels
-- Use titleLarge or headlineMedium for page/section titles
-- Use bodyMedium or bodySmall for supporting text, always in a muted color (#79747E or onSurfaceVariant)
-- Never use the same text style for everything — vary styles to guide the eye
-
-**Color & Visual Polish**
-- Use the primary color (#6750A4) for key actions and highlights only — don't overuse it
-- Use subtle background colors on cards and sections to create depth (e.g. variant: "elevated" or "filled")
-- Badges, chips, and status indicators should use semantic colors: success=green, error=red, warning=amber
-- Prefer hex colors that match MD3 palette for consistency
-
-**Components & Patterns**
-- Always use layout.scaffold with appBar for screens that represent full pages
-- Cards should contain complete, scannable content — image + title + metadata + action
-- Use collection.map for lists/grids — never hardcode more than 2-3 example items inline
-- Use chips for filters/categories, badges for status, avatars for people
-- Every interactive element needs visual affordance (buttons, chips, cards with onPress)
-- Use progress indicators for data that loads asynchronously
-- Empty states and loading states make UIs feel complete — include them with conditional.render
-
-**Real-World Data**
-- Use realistic names, prices, dates, descriptions — not "Item 1", "Test", "Lorem ipsum"
-- Images: use https://picsum.photos/seed/KEYWORD/WIDTH/HEIGHT for consistent, relevant photos
-- Avatars: use https://i.pravatar.cc/150?img=NUMBER (1–70) for realistic user photos
-
-RESPONSE RULES:
-- Always respond with a valid PineUI JSON schema wrapped in a \`\`\`json code block
-- Before the JSON, write a brief 1-2 sentence description of what you built or changed
-- Never include any explanation after the JSON block
-- When the conversation history already contains a schema, make TARGETED changes to it — only modify what the user asks for. Preserve existing components, data, and structure unless explicitly told to change them.`;
+    const systemPrompt = [
+      'You are an expert PineUI schema generator.',
+      '',
+      '## PineUI Component Documentation',
+      pineContext,
+      '',
+      '---',
+      '',
+      designGuide,
+      '',
+      '---',
+      '',
+      '## Response Rules',
+      '- Always respond with a valid PineUI JSON schema wrapped in a ```json code block',
+      '- Before the JSON, write a brief 1–2 sentence description of what you built or changed',
+      '- Never include any explanation after the JSON block',
+      '- When the conversation history already contains a schema, make TARGETED changes — only modify what the user explicitly asks for. Preserve all other components, data, and structure.',
+    ].join('\n');
 
     const messages = [
       ...history.map((msg) => ({ role: msg.role, content: msg.content })),
@@ -326,5 +312,8 @@ app.listen(PORT, () => {
   console.log(`  ${c.dim}Running at${c.reset} ${c.cyan}http://localhost:${PORT}${c.reset}`);
   console.log(`  ${c.dim}Rate limit: 10 req/min per IP${c.reset}`);
   console.log('');
-  getPineUIPrompt().catch((err) => log.err(`Failed to preload context: ${err.message}`));
+  getPineUIPrompt().catch((err) => log.err(`Failed to preload PROMPT.md: ${err.message}`));
+  const design = getDesignGuide();
+  if (design) log.ok(`Design guide loaded — ${c.dim}${design.length} chars${c.reset}`);
+  else log.warn(`data/DESIGN.md not found — design guide will be empty`);
 });

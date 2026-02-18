@@ -9,6 +9,7 @@ node_modules/
 public/schemas/
 data/*
 !data/PROMPT.md
+!data/DESIGN.md
 
 # OS files
 .DS_Store

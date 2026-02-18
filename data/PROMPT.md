@@ -15,10 +15,10 @@ PineUI is a Server-Driven UI framework for building dynamic, cross-platform inte
 
 ```html
 <!-- CSS -->
-<link rel="stylesheet" href="https://pineui.github.io/PineUI/pineui.css">
+<link rel="stylesheet" href="https://unpkg.com/@pineui/react@latest/dist/style.css">
 
 <!-- JavaScript (Standalone - includes React) -->
-<script src="https://pineui.github.io/PineUI/pineui.standalone.js"></script>
+<script src="https://unpkg.com/@pineui/react@latest/dist/pineui.standalone.js"></script>
 ```
 
 ## Basic Usage
@@ -27,11 +27,11 @@ PineUI is a Server-Driven UI framework for building dynamic, cross-platform inte
 <!DOCTYPE html>
 <html>
 <head>
-  <link rel="stylesheet" href="https://pineui.github.io/PineUI/pineui.css">
+  <link rel="stylesheet" href="https://unpkg.com/@pineui/react@latest/dist/style.css">
 </head>
 <body>
   <div id="app"></div>
-  <script src="https://pineui.github.io/PineUI/pineui.standalone.js"></script>
+  <script src="https://unpkg.com/@pineui/react@latest/dist/pineui.standalone.js"></script>
   <script>
     PineUI.render({
       target: '#app',
