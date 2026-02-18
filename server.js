@@ -78,11 +78,13 @@ const limiter = rateLimit({
 });
 
 // ── PineUI context ────────────────────────────────────────────────────────────
-const PROMPT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 let pineUIPrompt     = null;
 let pineUIPromptAt   = 0;
+let pineUIVersion    = null;
+let pineUIVersionAt  = 0;
 
-function fetchFromGitHub(url) {
+function fetchUrl(url) {
   return new Promise((resolve, reject) => {
     https.get(url, (res) => {
       let data = '';
@@ -92,18 +94,36 @@ function fetchFromGitHub(url) {
   });
 }
 
+async function getPineUIVersion() {
+  const now = Date.now();
+  if (pineUIVersion && (now - pineUIVersionAt) < CACHE_TTL) return pineUIVersion;
+
+  try {
+    const raw = await fetchUrl('https://registry.npmjs.org/@pineui/react/latest');
+    const version = JSON.parse(raw).version;
+    if (!version) throw new Error('no version field');
+    pineUIVersion   = version;
+    pineUIVersionAt = now;
+    log.ok(`PineUI version resolved — ${c.cyan}${version}${c.reset}`);
+  } catch (err) {
+    log.warn(`npm version fetch failed (${err.message}) — ${pineUIVersion ? `using ${pineUIVersion}` : 'falling back to @latest'}`);
+    if (!pineUIVersion) pineUIVersion = 'latest';
+  }
+  return pineUIVersion;
+}
+
 async function getPineUIPrompt() {
   const now = Date.now();
   const age = now - pineUIPromptAt;
 
-  if (pineUIPrompt && age < PROMPT_CACHE_TTL) {
+  if (pineUIPrompt && age < CACHE_TTL) {
     log.info(`Using cached PROMPT.md ${c.dim}(${pineUIPrompt.length} chars, ${Math.round(age / 1000)}s ago)${c.reset}`);
     return pineUIPrompt;
   }
 
   try {
     log.info('Fetching PineUI PROMPT.md from GitHub...');
-    const fresh = await fetchFromGitHub('https://raw.githubusercontent.com/PineUI/PineUI/main/PROMPT.md');
+    const fresh = await fetchUrl('https://raw.githubusercontent.com/PineUI/PineUI/main/PROMPT.md');
     pineUIPrompt   = fresh;
     pineUIPromptAt = now;
     writeFileSync(PROMPT_FILE, fresh, 'utf8');
@@ -253,6 +273,15 @@ app.post('/api/projects', (req, res) => {
   res.json(entry);
 });
 
+app.get('/api/pineui-version', async (req, res) => {
+  try {
+    const version = await getPineUIVersion();
+    res.json({ version });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/projects', (req, res) => {
   res.json(readManifest());
 });
@@ -313,6 +342,7 @@ app.listen(PORT, () => {
   console.log(`  ${c.dim}Rate limit: 10 req/min per IP${c.reset}`);
   console.log('');
   getPineUIPrompt().catch((err) => log.err(`Failed to preload PROMPT.md: ${err.message}`));
+  getPineUIVersion().catch((err) => log.err(`Failed to resolve PineUI version: ${err.message}`));
   const design = getDesignGuide();
   if (design) log.ok(`Design guide loaded — ${c.dim}${design.length} chars${c.reset}`);
   else log.warn(`data/DESIGN.md not found — design guide will be empty`);
