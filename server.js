@@ -3,6 +3,22 @@ import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import https from 'https';
 import rateLimit from 'express-rate-limit';
+import { createHash, randomBytes } from 'crypto';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const SCHEMAS_DIR = join(__dirname, 'public', 'schemas');
+const DATA_DIR    = join(__dirname, 'data');
+const MANIFEST    = join(DATA_DIR, 'projects.json');
+
+function ensureDirs() {
+  if (!existsSync(SCHEMAS_DIR)) mkdirSync(SCHEMAS_DIR, { recursive: true });
+  if (!existsSync(DATA_DIR))    mkdirSync(DATA_DIR,    { recursive: true });
+  if (!existsSync(MANIFEST))    writeFileSync(MANIFEST, '[]', 'utf8');
+}
+ensureDirs();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -219,6 +235,86 @@ RESPONSE RULES:
     log.err(`Claude API error: ${c.red}${err.message}${c.reset}`);
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
     res.end();
+  }
+});
+
+// ── Projects ──────────────────────────────────────────────────────────────────
+function readManifest() {
+  try { return JSON.parse(readFileSync(MANIFEST, 'utf8')); }
+  catch { return []; }
+}
+function writeManifest(data) {
+  writeFileSync(MANIFEST, JSON.stringify(data, null, 2), 'utf8');
+}
+
+app.post('/api/projects', (req, res) => {
+  const { schema, name, prompt } = req.body;
+  if (!schema || typeof schema !== 'object') {
+    return res.status(400).json({ error: 'Invalid schema' });
+  }
+
+  // Content-based hash — same schema never duplicates
+  const id = createHash('sha256')
+    .update(JSON.stringify(schema))
+    .digest('hex')
+    .slice(0, 10);
+
+  const filePath = join(SCHEMAS_DIR, `${id}.json`);
+  writeFileSync(filePath, JSON.stringify(schema, null, 2), 'utf8');
+
+  const projects = readManifest();
+  const existing = projects.findIndex(p => p.id === id);
+  const entry = {
+    id,
+    name: (name || prompt || 'Untitled').slice(0, 80),
+    prompt: (prompt || '').slice(0, 200),
+    createdAt: existing >= 0 ? projects[existing].createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    url: `/schemas/${id}.json`,
+  };
+
+  if (existing >= 0) projects[existing] = entry;
+  else projects.unshift(entry);
+
+  writeManifest(projects);
+  log.ok(`Project saved — id: ${c.cyan}${id}${c.reset} name: "${entry.name}"`);
+  res.json(entry);
+});
+
+app.get('/api/projects', (req, res) => {
+  res.json(readManifest());
+});
+
+app.delete('/api/projects/:id', (req, res) => {
+  const { id } = req.params;
+  if (!/^[a-f0-9]{10}$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid project id' });
+  }
+  const projects = readManifest();
+  const idx = projects.findIndex(p => p.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+
+  const filePath = join(SCHEMAS_DIR, `${id}.json`);
+  if (existsSync(filePath)) unlinkSync(filePath);
+  projects.splice(idx, 1);
+  writeManifest(projects);
+  log.ok(`Project deleted — id: ${c.cyan}${id}${c.reset}`);
+  res.json({ ok: true });
+});
+
+// Safe local schema loader — only serves from public/schemas/
+app.get('/api/projects/load/:filename', (req, res) => {
+  const filename = req.params.filename.replace(/[^a-f0-9]/g, '');
+  if (!filename) return res.status(400).json({ error: 'Invalid filename' });
+
+  const filePath = join(SCHEMAS_DIR, `${filename}.json`);
+  if (!existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+
+  try {
+    const schema = JSON.parse(readFileSync(filePath, 'utf8'));
+    res.json(schema);
+  } catch {
+    res.status(500).json({ error: 'Failed to parse schema file' });
   }
 });
 

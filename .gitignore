@@ -5,6 +5,10 @@ node_modules/
 .env.*
 !.env.example
 
+# Saved projects (runtime data)
+public/schemas/
+data/
+
 # OS files
 .DS_Store
 Thumbs.db
