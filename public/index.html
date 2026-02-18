@@ -446,12 +446,13 @@
     #pineui-view {
       display: none;
       height: 100%;
-      background: #FFFBFE;
-      overflow: auto;
     }
-    #pineui-view.active { display: block; }
-    #pineui-container {
-      min-height: 100%;
+    #pineui-view.active { display: flex; flex-direction: column; }
+    #pineui-frame {
+      flex: 1;
+      border: none;
+      width: 100%;
+      background: #FFFBFE;
     }
 
     /* Generating overlay */
@@ -574,7 +575,7 @@
             <span style="font-size:48px;opacity:0.3;filter:grayscale(1)">🍍</span>
             <p>Your generated UI will appear here</p>
           </div>
-          <div id="pineui-container"></div>
+          <iframe id="pineui-frame" style="display:none"></iframe>
         </div>
         <div id="code-view">
           <pre id="code-content"></pre>
@@ -583,9 +584,6 @@
     </div>
 
   </div>
-
-  <!-- PineUI runtime -->
-  <script src="https://pineui.github.io/PineUI/pineui.standalone.js"></script>
 
   <script>
     let currentSchema = null;
@@ -701,18 +699,34 @@
     }
 
     function renderPineUI(schema) {
-      const container = document.getElementById('pineui-container');
       const empty = document.getElementById('preview-empty');
-      empty.style.display = 'none';
-      container.innerHTML = '';
+      const frame = document.getElementById('pineui-frame');
 
-      try {
-        PineUI.render({ target: '#pineui-container', schema });
-      } catch (err) {
-        container.innerHTML = `<div style="padding:24px;color:#F2B8B5;font-family:monospace;font-size:13px">
-          <strong>Render error:</strong><br>${escapeHtml(err.message)}
-        </div>`;
-      }
+      empty.style.display = 'none';
+      frame.style.display = 'block';
+
+      frame.srcdoc = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://pineui.github.io/PineUI/pineui.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://pineui.github.io/PineUI/pineui.standalone.js"><\/script>
+  <script>
+    PineUI.render({
+      target: '#app',
+      schema: ${JSON.stringify(schema)}
+    });
+  <\/script>
+</body>
+</html>`;
     }
 
     function updateCodeView(schema) {
