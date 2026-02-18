@@ -722,6 +722,25 @@
       copyBtn.style.display = 'flex';
     }
 
+    function streamToCodeView(text) {
+      const el = document.getElementById('code-content');
+      el.textContent = text;
+      // Auto-scroll code view to bottom while streaming
+      const codeView = document.getElementById('code-view');
+      codeView.scrollTop = codeView.scrollHeight;
+    }
+
+    // Extract only the JSON portion from streamed text (partial or complete)
+    function extractStreamingJson(text) {
+      const start = text.indexOf('```json');
+      if (start === -1) return null;
+      const jsonStart = text.indexOf('\n', start) + 1;
+      const end = text.indexOf('```', start + 7);
+      return end === -1
+        ? text.slice(jsonStart)           // still streaming
+        : text.slice(jsonStart, end);     // complete
+    }
+
     function escapeHtml(str) {
       return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
@@ -740,6 +759,11 @@
       const typingIndicator = aiMsg.querySelector('.typing-indicator');
       const descEl = aiMsg.querySelector('.msg-description');
       const viewBtn = aiMsg.querySelector('.msg-view-btn');
+
+      // Switch to Code immediately so the user sees JSON being written
+      setTab('code');
+      streamToCodeView('');
+      copyBtn.style.display = 'none';
 
       generatingBar.classList.add('visible');
       previewLabel.textContent = 'Generating...';
@@ -778,8 +802,15 @@
               if (error) throw new Error(error);
               if (text) {
                 fullText += text;
+
+                // Update description in chat bubble
                 const desc = extractDescription(fullText);
                 if (desc) descEl.textContent = desc;
+
+                // Live-stream JSON portion into code view
+                const jsonChunk = extractStreamingJson(fullText);
+                if (jsonChunk !== null) streamToCodeView(jsonChunk);
+
                 chatMessages.scrollTop = chatMessages.scrollHeight;
               }
             } catch {}
@@ -790,9 +821,19 @@
         const schema = extractJsonFromText(fullText);
         if (schema) {
           currentSchema = schema;
-          renderPineUI(schema);
+
+          // Show formatted JSON in code view
           updateCodeView(schema);
+
+          // Render and auto-switch to View
+          renderPineUI(schema);
+          setTimeout(() => setTab('view'), 400);
+
           viewBtn.style.display = 'inline-flex';
+          viewBtn.textContent = '';
+          viewBtn.innerHTML = `<span class="material-symbols-rounded" style="font-size:12px">code</span> View code`;
+          viewBtn.onclick = () => setTab('code');
+
           previewLabel.textContent = prompt.length > 50 ? prompt.slice(0, 50) + '...' : prompt;
 
           conversationHistory.push({ role: 'user', content: prompt });
