@@ -430,7 +430,6 @@
     /* Code view */
     #code-view {
       display: none;
-      height: 100%;
     }
     #code-view.active { display: block; }
     #code-content {
@@ -441,7 +440,6 @@
       color: #D4D4D4;
       white-space: pre;
       overflow-x: auto;
-      height: 100%;
     }
 
     /* PineUI view */
@@ -724,10 +722,10 @@
 
     function streamToCodeView(text) {
       const el = document.getElementById('code-content');
-      const codeView = document.getElementById('code-view');
-      const atBottom = codeView.scrollHeight - codeView.scrollTop - codeView.clientHeight < 32;
+      const scroller = document.querySelector('.preview-content');
+      const atBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 32;
       el.textContent = text;
-      if (atBottom) codeView.scrollTop = codeView.scrollHeight;
+      if (atBottom) scroller.scrollTop = scroller.scrollHeight;
     }
 
     // Extract only the JSON portion from streamed text (partial or complete)
