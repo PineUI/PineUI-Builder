@@ -62,16 +62,6 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static('public'));
 
-// Always return JSON errors (never HTML) for API routes
-app.use('/api', (err, req, res, next) => {
-  const status = err.status || err.statusCode || 500;
-  const message = err.type === 'entity.too.large'
-    ? 'Schema too large (max 2mb)'
-    : err.message || 'Internal server error';
-  log.err(`API error on ${req.method} ${req.path}: ${message}`);
-  res.status(status).json({ error: message });
-});
-
 // ── Rate limit ────────────────────────────────────────────────────────────────
 const limiter = rateLimit({
   windowMs: 60 * 1000,
@@ -83,6 +73,30 @@ const limiter = rateLimit({
     log.warn(`Rate limit hit — IP: ${c.yellow}${ip}${c.reset}`);
     res.status(429).json({ error: 'Too many requests. Please wait a moment before trying again.' });
   },
+});
+
+// ── PineUI version ────────────────────────────────────────────────────────────
+let pineUIVersion = 'latest';
+
+async function fetchLatestVersion() {
+  return new Promise((resolve, reject) => {
+    https.get(
+      'https://registry.npmjs.org/@pineui/react/latest',
+      { headers: { 'Accept': 'application/json' } },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => (data += chunk));
+        res.on('end', () => {
+          try { resolve(JSON.parse(data).version); }
+          catch { resolve('latest'); }
+        });
+      }
+    ).on('error', () => resolve('latest'));
+  });
+}
+
+app.get('/api/pineui-version', (req, res) => {
+  res.json({ version: pineUIVersion });
 });
 
 // ── PineUI context ────────────────────────────────────────────────────────────
@@ -141,72 +155,108 @@ ${pineContext}
 
 ---
 
-## STRICT COMPONENT CONTRACT — verified against real SDK demos
+## STRICT COMPONENT CONTRACT — based on current PineUI SDK
 
 ### Layout
-- layout.column — props: children, padding, spacing, mainAxisAlignment, crossAxisAlignment, width, height, flex, backgroundColor, borderRadius, overflow, borderRight, borderLeft, borderTop, borderBottom
+- layout.column — props: children, padding, spacing, mainAxisAlignment, crossAxisAlignment, width, height
 - layout.row — same props as layout.column
-- layout.scaffold — props: body, floatingActionButton, appBar, bottomNav
+- layout.grid — props: children, columns, spacing, responsive
+- layout.scaffold — props: body, appBar ({title, leading, actions}), bottomNav, floatingActionButton
 
 ### Display
-- text — props: content, style, color, fontWeight, fontSize, lineHeight, align
-  - style values: titleLarge, titleMedium, titleSmall, bodyLarge, bodyMedium, bodySmall, headlineLarge, headlineMedium, headlineSmall, labelLarge, labelMedium, labelSmall, displayLarge, displayMedium, displaySmall
-  - color values: "primary", "onSurfaceVariant", "error", "success", or any hex string like "#49454F"
-- image — props: src (NOT url), width, height, fit, borderRadius, aspectRatio
-- avatar — props: src (NOT url), size
-- card — props: child (singular, NOT children), elevation, padding, backgroundColor, borderRadius, onPress, onTap, width, height
-- badge — props: label, color, variant, size
-- chip — props: label, selected, onPress
+- text — props: content, style, color, align
+  - style values: displayLarge, displayMedium, displaySmall, headlineLarge, headlineMedium, headlineSmall, titleLarge, titleMedium, titleSmall, bodyLarge, bodyMedium, bodySmall, labelLarge, labelMedium, labelSmall
+- image — props: src (NOT url), alt, width, height, fit ("cover"|"contain"|"fill"), borderRadius
+- avatar — props: src (NOT url), alt, size, fallback
+- icon — props: name (Material Icons name), size, color
+- card — props: children (plural, NOT child), variant ("elevated"|"filled"|"outlined"), padding, onPress
+- badge — props: label, color ("primary"|"secondary"|"error"|"success"|"warning"|"info")
+- chip — props: label, variant ("outlined"|"filled"), selected, icon, onPress
 - divider — props: spacing
-- progress — props: value, label, color  (only "progress", NOT "progress.linear" or "progress.circular")
-- tabs — props: tabs (array of {id, label, badge?, content}), defaultTab
-- table — props: columns (array of {key, label, width?, template?}), data
+- progress.circular — props: size, color
+- progress.linear — props: value (0–100), color
 
 ### Buttons
-- button.filled — props: label, icon, onPress, disabled, fullWidth
-- button.text — props: label, icon, onPress, disabled, fullWidth
-- button.icon — props: icon, size, color, label, onPress, disabled
-- button.fab — props: icon, label, onPress, disabled
+- button.filled — props: label, icon, iconPosition, onPress, disabled, fullWidth
+- button.outlined — props: label, icon, iconPosition, onPress, disabled, fullWidth
+- button.text — props: label, icon, iconPosition, onPress, disabled, fullWidth
+- button.elevated — props: label, icon, iconPosition, onPress, disabled, fullWidth
+- button.tonal — props: label, icon, iconPosition, onPress, disabled, fullWidth
 
-### Input
-- input.text — props: id, placeholder, value, multiline, maxLines, maxLength, autofocus, flex, borderRadius, onChanged
-  (this is the ONLY input type — do NOT use input.email, input.password, input.number, input.textarea)
+### Inputs
+- input.text — props: label, placeholder, value, required, disabled, error, helperText, onChange
+- input.email — props: same as input.text
+- input.password — props: same as input.text
+- input.number — props: same as input.text
+- input.textarea — props: same as input.text (multi-line)
 
 ### Collections & Conditional
-- collection — props: id, layout ("list"|"grid"), columns, spacing, itemSpacing, virtualized, data, itemTemplate (NOT template), loadingState, emptyState, errorState
-- conditionalRender — props: conditions (array of {when: "{{expr}}", render: ComponentNode})
+- collection.map — props: data ("{{state.array}}"), template (component node using {{item}} and {{index}})
+- conditional.render — props: condition ("{{expr}}" string), children (shown when true), fallback (shown when false, optional)
 
-### Overlays
-- Defined in "overlays" key at schema root, NOT inline
-- overlay type: "overlay.modal" with props: presentation ("modal"|"bottomSheet"), dismissible, child
-- Open: action.overlay.open — props: overlayId
-- Close: action.overlay.close — props: overlayId
+### Modals
+- modal — inline in screen tree, props: id, title, fullScreen (boolean), children
+- action.overlay.show — props: overlayId
+- action.overlay.hide — props: overlayId
 
 ### Actions
-- action.http — props: method, url, body, onSuccess (NOT "action.http.request")
+- action.http.request — props: url, method, body, onSuccess (use {{response}} for response data), onError
 - action.state.patch — props: path, value
-- action.overlay.open — props: overlayId
-- action.overlay.close — props: overlayId
-- action.snackbar.show — props: message, duration
-- action.delay — props: duration
+- action.overlay.show — props: overlayId
+- action.overlay.hide — props: overlayId
+- action.snackbar.show — props: message, duration, action ({label, onPress})
+- action.delay — props: duration, then (action)
 - action.sequence — props: actions (array of action objects)
-- action.collection.refresh — props: collectionId
 
 ### Intents
-- Define in "intents" key: {"intentName": {"handler": ActionNode | ActionNode[]}}
-- Call with shorthand object: {"intent": "intentName", "param": "value"}
-- Do NOT use {"type": "intent", "name": "..."} — that is NOT supported
+- Define in "intents" key: {"intentName": {"handler": ActionNode}}
+- Call with: {"type": "intent", "name": "intentName"}
 
-NEVER invent component or action types. NEVER use input.email, input.password, input.number. NEVER use action.http.request. NEVER use template instead of itemTemplate. NEVER use url instead of src on image/avatar.
+NEVER invent component or action types. NEVER use "url" on image/avatar — use "src". NEVER use "action.overlay.open/close" — use "action.overlay.show/hide". NEVER use "conditionalRender" — use "conditional.render". NEVER use bare "collection" — use "collection.map". NEVER use "onChanged" on inputs — use "onChange". NEVER use "child" singular on card — use "children". In onSuccess of action.http.request, access response data with {{response}}.
 
 ---
 
+DESIGN QUALITY STANDARDS — Follow these always:
+
+You are building interfaces at the quality level of Google, Airbnb, Stripe, and Linear. Every schema must feel polished and production-ready.
+
+**Layout & Spacing**
+- Use generous padding: 16–24px inside cards, 24–32px for page padding
+- Use consistent spacing rhythm: prefer 8, 12, 16, 24, 32px gaps
+- Never stack elements without breathing room — spacing between sections: 24–40px
+- Group related items visually; separate unrelated sections with dividers or whitespace
+
+**Typography Hierarchy**
+- Every screen needs a clear visual hierarchy: one dominant headline, supporting body text, labels
+- Use titleLarge or headlineMedium for page/section titles
+- Use bodyMedium or bodySmall for supporting text, always in a muted color (#79747E or onSurfaceVariant)
+- Never use the same text style for everything — vary styles to guide the eye
+
+**Color & Visual Polish**
+- Use the primary color (#6750A4) for key actions and highlights only — don't overuse it
+- Use subtle background colors on cards and sections to create depth (e.g. variant: "elevated" or "filled")
+- Badges, chips, and status indicators should use semantic colors: success=green, error=red, warning=amber
+- Prefer hex colors that match MD3 palette for consistency
+
+**Components & Patterns**
+- Always use layout.scaffold with appBar for screens that represent full pages
+- Cards should contain complete, scannable content — image + title + metadata + action
+- Use collection.map for lists/grids — never hardcode more than 2-3 example items inline
+- Use chips for filters/categories, badges for status, avatars for people
+- Every interactive element needs visual affordance (buttons, chips, cards with onPress)
+- Use progress indicators for data that loads asynchronously
+- Empty states and loading states make UIs feel complete — include them with conditional.render
+
+**Real-World Data**
+- Use realistic names, prices, dates, descriptions — not "Item 1", "Test", "Lorem ipsum"
+- Images: use https://picsum.photos/seed/KEYWORD/WIDTH/HEIGHT for consistent, relevant photos
+- Avatars: use https://i.pravatar.cc/150?img=NUMBER (1–70) for realistic user photos
+
 RESPONSE RULES:
 - Always respond with a valid PineUI JSON schema wrapped in a \`\`\`json code block
-- Before the JSON, write a brief 1-2 sentence description of what you built
+- Before the JSON, write a brief 1-2 sentence description of what you built or changed
 - Never include any explanation after the JSON block
-- Use realistic, meaningful data in your schemas
-- Make the UI visually rich and complete`;
+- When the conversation history already contains a schema, make TARGETED changes to it — only modify what the user asks for. Preserve existing components, data, and structure unless explicitly told to change them.`;
 
     const messages = [
       ...history.map((msg) => ({ role: msg.role, content: msg.content })),
@@ -332,6 +382,16 @@ app.get('/projects/:id', (req, res) => {
   res.sendFile(join(__dirname, 'public', 'index.html'));
 });
 
+// ── API error handler (must be after all routes) ──────────────────────────────
+app.use('/api', (err, req, res, next) => {
+  const status = err.status || err.statusCode || 500;
+  const message = err.type === 'entity.too.large'
+    ? 'Schema too large (max 2mb)'
+    : err.message || 'Internal server error';
+  log.err(`API error on ${req.method} ${req.path}: ${message}`);
+  res.status(status).json({ error: message });
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log('');
@@ -340,4 +400,8 @@ app.listen(PORT, () => {
   console.log(`  ${c.dim}Rate limit: 10 req/min per IP${c.reset}`);
   console.log('');
   getPineUIPrompt().catch((err) => log.err(`Failed to preload context: ${err.message}`));
+  fetchLatestVersion().then((v) => {
+    pineUIVersion = v;
+    log.ok(`PineUI version resolved — ${c.cyan}${v}${c.reset}`);
+  }).catch(() => log.warn('Could not resolve PineUI version, using @latest'));
 });

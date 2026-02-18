@@ -10,7 +10,7 @@
   <!-- Google Fonts -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" />
   <!-- PineUI CSS -->
-  <link rel="stylesheet" href="https://pineui.github.io/PineUI/pineui.css" />
+  <link rel="stylesheet" href="https://unpkg.com/@pineui/react@latest/dist/style.css" />
 
   <style>
     :root {
@@ -851,6 +851,13 @@
     let isGenerating = false;
     let activeTab = 'view';
     let currentProjectId = null; // stable session ID, set on first auto-save
+    let pineUIVersion = 'latest';
+
+    // Resolve the exact PineUI version so the iframe never uses a stale @latest cache
+    fetch('/api/pineui-version')
+      .then(r => r.json())
+      .then(({ version }) => { pineUIVersion = version; })
+      .catch(() => {});
 
     // Generate a random 10-char hex ID for a new session
     function generateSessionId() {
@@ -881,6 +888,7 @@
         document.getElementById('save-btn').style.display = 'flex';
       } catch (err) {
         console.warn('Auto-save failed:', err.message);
+        showToast('Auto-save failed: ' + err.message);
       }
     }
 
@@ -889,9 +897,15 @@
       const match = location.pathname.match(/^\/projects\/([a-f0-9]{10})$/);
       if (!match) return;
       const id = match[1];
+      document.getElementById('preview-label').textContent = 'Loading project...';
       try {
         const res = await fetch(`/api/projects/load/${id}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          history.replaceState({}, '', '/');
+          document.getElementById('preview-label').textContent = 'Waiting for a prompt...';
+          showToast('Project not found — start a new conversation below');
+          return;
+        }
         const schema = await res.json();
         currentSchema = schema;
         currentProjectId = id;
@@ -901,8 +915,14 @@
         document.getElementById('copy-btn').style.display = 'flex';
         document.getElementById('preview-label').textContent = id;
         document.getElementById('preview-empty').style.display = 'none';
+        seedHistory(schema);
         setTab('view');
+        // Hide empty state and show a loaded message in chat
+        if (chatEmpty) chatEmpty.style.display = 'none';
+        appendMessage('ai', 'Project loaded. You can describe changes or continue building from here.');
       } catch (err) {
+        history.replaceState({}, '', '/');
+        document.getElementById('preview-label').textContent = 'Waiting for a prompt...';
         console.warn('Failed to boot-load project:', err.message);
       }
     })();
@@ -1021,20 +1041,38 @@
       empty.style.display = 'none';
       frame.style.display = 'block';
 
+      const cdn = `https://unpkg.com/@pineui/react@${pineUIVersion}/dist`;
       frame.srcdoc = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://pineui.github.io/PineUI/pineui.css">
+  <link rel="stylesheet" href="${cdn}/style.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { min-height: 100vh; }
   </style>
+  <script>
+    (function () {
+      function fwd(level, args) {
+        try { window.parent.postMessage({ type: '__pine_log__', level, args: Array.from(args).map(String) }, '*'); } catch(e) {}
+      }
+      ['log','warn','error','info'].forEach(function(l) {
+        var orig = console[l].bind(console);
+        console[l] = function() { fwd(l, arguments); orig.apply(console, arguments); };
+      });
+      window.onerror = function(msg, _src, line) {
+        fwd('error', ['[uncaught] ' + msg + ' (line ' + line + ')']);
+      };
+      window.onunhandledrejection = function(e) {
+        fwd('error', ['[unhandled rejection] ' + (e.reason && e.reason.message || String(e.reason))]);
+      };
+    })();
+  <\/script>
 </head>
 <body>
   <div id="app"></div>
-  <script src="https://pineui.github.io/PineUI/pineui.standalone.js"><\/script>
+  <script src="${cdn}/pineui.standalone.js"><\/script>
   <script>
     PineUI.render({
       target: '#app',
@@ -1048,6 +1086,14 @@
     function updateCodeView(schema) {
       document.getElementById('code-content').textContent = JSON.stringify(schema, null, 2);
       copyBtn.style.display = 'flex';
+    }
+
+    // Seed conversation history from a loaded schema so Claude can make incremental changes
+    function seedHistory(schema) {
+      conversationHistory = [
+        { role: 'user', content: 'Generate a PineUI schema for this project.' },
+        { role: 'assistant', content: 'Here is the generated PineUI schema:\n\n```json\n' + JSON.stringify(schema, null, 2) + '\n```' },
+      ];
     }
 
     function streamToCodeView(text) {
@@ -1143,11 +1189,17 @@
         if (!res.ok) throw new Error('Not found');
         const schema = await res.json();
         currentSchema = schema;
+        currentProjectId = id;
+        seedHistory(schema);
         renderPineUI(schema);
         updateCodeView(schema);
         document.getElementById('save-btn').style.display = 'flex';
         document.getElementById('copy-btn').style.display = 'flex';
         document.getElementById('preview-label').textContent = id;
+        history.pushState({ id }, '', `/projects/${id}`);
+        // Hide empty state and show context message in chat
+        document.getElementById('chat-empty').style.display = 'none';
+        appendMessage('ai', 'Project loaded. You can describe changes or continue building from here.');
         setTab('view');
         closeProjectsModal();
       } catch (err) {
@@ -1234,6 +1286,14 @@
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 4000);
     }
+
+    // Forward PineUI iframe console messages to the parent DevTools
+    window.addEventListener('message', (e) => {
+      if (e.data && e.data.type === '__pine_log__') {
+        const { level, args } = e.data;
+        (console[level] || console.log)('[PineUI]', ...args);
+      }
+    });
 
     async function sendMessage() {
       const prompt = chatInput.value.trim();
