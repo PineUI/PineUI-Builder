@@ -851,13 +851,6 @@
     let isGenerating = false;
     let activeTab = 'view';
     let currentProjectId = null; // stable session ID, set on first auto-save
-    let pineUIVersion = 'latest';
-
-    // Resolve the exact PineUI version so the iframe never uses a stale @latest cache
-    fetch('/api/pineui-version')
-      .then(r => r.json())
-      .then(({ version }) => { pineUIVersion = version; })
-      .catch(() => {});
 
     // Generate a random 10-char hex ID for a new session
     function generateSessionId() {
@@ -1041,13 +1034,12 @@
       empty.style.display = 'none';
       frame.style.display = 'block';
 
-      const cdn = `https://unpkg.com/@pineui/react@${pineUIVersion}/dist`;
       frame.srcdoc = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="${cdn}/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/@pineui/react@latest/dist/style.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { min-height: 100vh; }
@@ -1072,7 +1064,7 @@
 </head>
 <body>
   <div id="app"></div>
-  <script src="${cdn}/pineui.standalone.js"><\/script>
+  <script src="https://unpkg.com/@pineui/react@latest/dist/pineui.standalone.js"><\/script>
   <script>
     PineUI.render({
       target: '#app',

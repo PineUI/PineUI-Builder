@@ -12,6 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCHEMAS_DIR = join(__dirname, 'public', 'schemas');
 const DATA_DIR    = join(__dirname, 'data');
 const MANIFEST    = join(DATA_DIR, 'projects.json');
+const PROMPT_FILE = join(DATA_DIR, 'PROMPT.md');
 
 function ensureDirs() {
   if (!existsSync(SCHEMAS_DIR)) mkdirSync(SCHEMAS_DIR, { recursive: true });
@@ -75,30 +76,6 @@ const limiter = rateLimit({
   },
 });
 
-// ── PineUI version ────────────────────────────────────────────────────────────
-let pineUIVersion = 'latest';
-
-async function fetchLatestVersion() {
-  return new Promise((resolve, reject) => {
-    https.get(
-      'https://registry.npmjs.org/@pineui/react/latest',
-      { headers: { 'Accept': 'application/json' } },
-      (res) => {
-        let data = '';
-        res.on('data', (chunk) => (data += chunk));
-        res.on('end', () => {
-          try { resolve(JSON.parse(data).version); }
-          catch { resolve('latest'); }
-        });
-      }
-    ).on('error', () => resolve('latest'));
-  });
-}
-
-app.get('/api/pineui-version', (req, res) => {
-  res.json({ version: pineUIVersion });
-});
-
 // ── PineUI context ────────────────────────────────────────────────────────────
 let pineUIPrompt = null;
 
@@ -117,9 +94,20 @@ async function fetchPineUIPrompt() {
 
 async function getPineUIPrompt() {
   if (!pineUIPrompt) {
-    log.info('Fetching PineUI PROMPT.md from GitHub...');
-    pineUIPrompt = await fetchPineUIPrompt();
-    log.ok(`PineUI context loaded — ${c.dim}${pineUIPrompt.length} chars${c.reset}`);
+    try {
+      log.info('Fetching PineUI PROMPT.md from GitHub...');
+      pineUIPrompt = await fetchPineUIPrompt();
+      writeFileSync(PROMPT_FILE, pineUIPrompt, 'utf8');
+      log.ok(`PineUI context loaded — ${c.dim}${pineUIPrompt.length} chars${c.reset}`);
+    } catch (err) {
+      if (existsSync(PROMPT_FILE)) {
+        log.warn(`GitHub fetch failed (${err.message}) — using local PROMPT.md`);
+        pineUIPrompt = readFileSync(PROMPT_FILE, 'utf8');
+        log.ok(`PineUI context loaded from disk — ${c.dim}${pineUIPrompt.length} chars${c.reset}`);
+      } else {
+        throw new Error(`Cannot load PineUI context: ${err.message}`);
+      }
+    }
   } else {
     log.info(`Using cached PineUI context ${c.dim}(${pineUIPrompt.length} chars)${c.reset}`);
   }
@@ -152,67 +140,6 @@ app.post('/api/generate', limiter, async (req, res) => {
     const systemPrompt = `You are an expert PineUI schema generator. Use the following PineUI documentation to generate valid JSON schemas.
 
 ${pineContext}
-
----
-
-## STRICT COMPONENT CONTRACT — based on current PineUI SDK
-
-### Layout
-- layout.column — props: children, padding, spacing, mainAxisAlignment, crossAxisAlignment, width, height
-- layout.row — same props as layout.column
-- layout.grid — props: children, columns, spacing, responsive
-- layout.scaffold — props: body, appBar ({title, leading, actions}), bottomNav, floatingActionButton
-
-### Display
-- text — props: content, style, color, align
-  - style values: displayLarge, displayMedium, displaySmall, headlineLarge, headlineMedium, headlineSmall, titleLarge, titleMedium, titleSmall, bodyLarge, bodyMedium, bodySmall, labelLarge, labelMedium, labelSmall
-- image — props: src (NOT url), alt, width, height, fit ("cover"|"contain"|"fill"), borderRadius
-- avatar — props: src (NOT url), alt, size, fallback
-- icon — props: name (Material Icons name), size, color
-- card — props: children (plural, NOT child), variant ("elevated"|"filled"|"outlined"), padding, onPress
-- badge — props: label, color ("primary"|"secondary"|"error"|"success"|"warning"|"info")
-- chip — props: label, variant ("outlined"|"filled"), selected, icon, onPress
-- divider — props: spacing
-- progress.circular — props: size, color
-- progress.linear — props: value (0–100), color
-
-### Buttons
-- button.filled — props: label, icon, iconPosition, onPress, disabled, fullWidth
-- button.outlined — props: label, icon, iconPosition, onPress, disabled, fullWidth
-- button.text — props: label, icon, iconPosition, onPress, disabled, fullWidth
-- button.elevated — props: label, icon, iconPosition, onPress, disabled, fullWidth
-- button.tonal — props: label, icon, iconPosition, onPress, disabled, fullWidth
-
-### Inputs
-- input.text — props: label, placeholder, value, required, disabled, error, helperText, onChange
-- input.email — props: same as input.text
-- input.password — props: same as input.text
-- input.number — props: same as input.text
-- input.textarea — props: same as input.text (multi-line)
-
-### Collections & Conditional
-- collection.map — props: data ("{{state.array}}"), template (component node using {{item}} and {{index}})
-- conditional.render — props: condition ("{{expr}}" string), children (shown when true), fallback (shown when false, optional)
-
-### Modals
-- modal — inline in screen tree, props: id, title, fullScreen (boolean), children
-- action.overlay.show — props: overlayId
-- action.overlay.hide — props: overlayId
-
-### Actions
-- action.http.request — props: url, method, body, onSuccess (use {{response}} for response data), onError
-- action.state.patch — props: path, value
-- action.overlay.show — props: overlayId
-- action.overlay.hide — props: overlayId
-- action.snackbar.show — props: message, duration, action ({label, onPress})
-- action.delay — props: duration, then (action)
-- action.sequence — props: actions (array of action objects)
-
-### Intents
-- Define in "intents" key: {"intentName": {"handler": ActionNode}}
-- Call with: {"type": "intent", "name": "intentName"}
-
-NEVER invent component or action types. NEVER use "url" on image/avatar — use "src". NEVER use "action.overlay.open/close" — use "action.overlay.show/hide". NEVER use "conditionalRender" — use "conditional.render". NEVER use bare "collection" — use "collection.map". NEVER use "onChanged" on inputs — use "onChange". NEVER use "child" singular on card — use "children". In onSuccess of action.http.request, access response data with {{response}}.
 
 ---
 
@@ -400,8 +327,4 @@ app.listen(PORT, () => {
   console.log(`  ${c.dim}Rate limit: 10 req/min per IP${c.reset}`);
   console.log('');
   getPineUIPrompt().catch((err) => log.err(`Failed to preload context: ${err.message}`));
-  fetchLatestVersion().then((v) => {
-    pineUIVersion = v;
-    log.ok(`PineUI version resolved — ${c.cyan}${v}${c.reset}`);
-  }).catch(() => log.warn('Could not resolve PineUI version, using @latest'));
 });
