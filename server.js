@@ -163,7 +163,7 @@ IMPORTANT RULES:
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log('');
-  console.log(`  ${c.bold}${c.green}🌲 PineUI Builder${c.reset}`);
+  console.log(`  ${c.bold}${c.green}🍍 PineUI Builder${c.reset}`);
   console.log(`  ${c.dim}Running at${c.reset} ${c.cyan}http://localhost:${PORT}${c.reset}`);
   console.log(`  ${c.dim}Rate limit: 10 req/min per IP${c.reset}`);
   console.log('');

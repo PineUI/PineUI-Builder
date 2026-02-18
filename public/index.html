@@ -10,7 +10,7 @@
   <!-- Google Fonts -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" />
   <!-- PineUI CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/@pineui/react@latest/dist/style.css" />
+  <link rel="stylesheet" href="https://pineui.github.io/PineUI/pineui.css" />
 
   <style>
     :root {
@@ -491,7 +491,7 @@
   <!-- Top bar -->
   <div class="topbar">
     <div class="topbar-logo">
-      <div class="pine-icon">🌲</div>
+      <div class="pine-icon">🍍</div>
       <h1>PineUI Builder</h1>
       <span>AI-powered</span>
     </div>
@@ -587,7 +587,7 @@
   </div>
 
   <!-- PineUI runtime -->
-  <script src="https://unpkg.com/@pineui/react@latest/dist/pineui.standalone.js"></script>
+  <script src="https://pineui.github.io/PineUI/pineui.standalone.js"></script>
 
   <script>
     let currentSchema = null;
@@ -652,7 +652,7 @@
       msg.className = `message ${role}`;
       msg.innerHTML = `
         <div class="msg-avatar ${role === 'ai' ? 'ai' : 'user-av'}">
-          ${role === 'ai' ? '🌲' : 'U'}
+          ${role === 'ai' ? '🍍' : 'U'}
         </div>
         <div class="msg-bubble">
           <div class="msg-text">${escapeHtml(content)}</div>
@@ -669,7 +669,7 @@
       const msg = document.createElement('div');
       msg.className = 'message ai';
       msg.innerHTML = `
-        <div class="msg-avatar ai">🌲</div>
+        <div class="msg-avatar ai">🍍</div>
         <div class="msg-bubble">
           <div class="typing-indicator">
             <div class="typing-dot"></div>
