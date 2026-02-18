@@ -115,61 +115,63 @@ ${pineContext}
 
 ---
 
-## STRICT COMPONENT CONTRACT — only use what is listed below
+## STRICT COMPONENT CONTRACT — verified against real SDK demos
 
 ### Layout
-- layout.column — props: children, padding, spacing, mainAxisAlignment, crossAxisAlignment, width, height, backgroundColor, borderRadius, scrollable
+- layout.column — props: children, padding, spacing, mainAxisAlignment, crossAxisAlignment, width, height, flex, backgroundColor, borderRadius, overflow, borderRight, borderLeft, borderTop, borderBottom
 - layout.row — same props as layout.column
-- layout.grid — props: children, columns, spacing, responsive
-- layout.scaffold — props: appBar, bottomNav, floatingActionButton, body
+- layout.scaffold — props: body, floatingActionButton, appBar, bottomNav
 
 ### Display
-- text — props: content, style, color, fontWeight, fontSize, lineHeight
-  - style values: displayLarge, displayMedium, displaySmall, headlineLarge, headlineMedium, headlineSmall, titleLarge, titleMedium, titleSmall, bodyLarge, bodyMedium, bodySmall, labelLarge, labelMedium, labelSmall
-- image — props: url (NOT src), width, height, fit, borderRadius, alt, onPress
-- avatar — props: url (NOT src), initials (NOT fallback), size, backgroundColor, textColor, onPress
-- card — props: child (singular, NOT children), elevation, padding, backgroundColor, borderRadius, onPress, width, height
-- badge — props: label, color
-- icon — props: name, size, color
-- chip — props: label, variant, selected, icon, onPress
+- text — props: content, style, color, fontWeight, fontSize, lineHeight, align
+  - style values: titleLarge, titleMedium, titleSmall, bodyLarge, bodyMedium, bodySmall, headlineLarge, headlineMedium, headlineSmall, labelLarge, labelMedium, labelSmall, displayLarge, displayMedium, displaySmall
+  - color values: "primary", "onSurfaceVariant", "error", "success", or any hex string like "#49454F"
+- image — props: src (NOT url), width, height, fit, borderRadius, aspectRatio
+- avatar — props: src (NOT url), size
+- card — props: child (singular, NOT children), elevation, padding, backgroundColor, borderRadius, onPress, onTap, width, height
+- badge — props: label, color, variant, size
+- chip — props: label, selected, onPress
 - divider — props: spacing
+- progress — props: value, label, color  (only "progress", NOT "progress.linear" or "progress.circular")
+- tabs — props: tabs (array of {id, label, badge?, content}), defaultTab
+- table — props: columns (array of {key, label, width?, template?}), data
 
 ### Buttons
-- button.filled — props: label, icon, onPress, disabled, fullWidth, color
-- button.outlined — props: label, icon, onPress, disabled, fullWidth
+- button.filled — props: label, icon, onPress, disabled, fullWidth
 - button.text — props: label, icon, onPress, disabled, fullWidth
-- button.icon — props: icon, onPress, disabled
-- button.fab — props: icon, size, onPress, disabled
-- button.elevated — props: label, icon, onPress, disabled, fullWidth
-- button.tonal — props: label, icon, onPress, disabled, fullWidth
+- button.icon — props: icon, size, color, label, onPress, disabled
+- button.fab — props: icon, label, onPress, disabled
 
-### Inputs
-- input.text — props: statePath, label, placeholder, helperText, errorText, maxLength, disabled, required, onChange
-- input.email — same props
-- input.password — same props
-- input.number — same props
-- input.textarea — same props + multiline: true, rows
+### Input
+- input.text — props: id, placeholder, value, multiline, maxLines, maxLength, autofocus, flex, borderRadius, onChanged
+  (this is the ONLY input type — do NOT use input.email, input.password, input.number, input.textarea)
 
-### Data
-- collection — props: data, template (NOT itemTemplate), spacing, emptyState, loadingState
-- conditional — props: condition, child (singular), fallback
+### Collections & Conditional
+- collection — props: id, layout ("list"|"grid"), columns, spacing, itemSpacing, virtualized, data, itemTemplate (NOT template), loadingState, emptyState, errorState
+- conditionalRender — props: conditions (array of {when: "{{expr}}", render: ComponentNode})
 
-### Feedback
-- progress.circular — props: size, color
-- progress.linear — props: value, color
-- modal — props: id, title, fullScreen, children
+### Overlays
+- Defined in "overlays" key at schema root, NOT inline
+- overlay type: "overlay.modal" with props: presentation ("modal"|"bottomSheet"), dismissible, child
+- Open: action.overlay.open — props: overlayId
+- Close: action.overlay.close — props: overlayId
 
 ### Actions
-- action.http.request — props: url, method, headers, body, onSuccess, onError
+- action.http — props: method, url, body, onSuccess (NOT "action.http.request")
 - action.state.patch — props: path, value
-- action.overlay.show — props: overlayId, props
-- action.overlay.hide — props: overlayId
-- action.snackbar.show — props: message, duration, severity, action
-- action.delay — props: duration, then
-- action.sequence — props: actions (array)
-- action.collection.refresh
+- action.overlay.open — props: overlayId
+- action.overlay.close — props: overlayId
+- action.snackbar.show — props: message, duration
+- action.delay — props: duration
+- action.sequence — props: actions (array of action objects)
+- action.collection.refresh — props: collectionId
 
-NEVER use a component or action not in this list. NEVER use "src" on image/avatar — use "url". NEVER use "children" on card — use "child". NEVER use "itemTemplate" on collection — use "template".
+### Intents
+- Define in "intents" key: {"intentName": {"handler": ActionNode | ActionNode[]}}
+- Call with shorthand object: {"intent": "intentName", "param": "value"}
+- Do NOT use {"type": "intent", "name": "..."} — that is NOT supported
+
+NEVER invent component or action types. NEVER use input.email, input.password, input.number. NEVER use action.http.request. NEVER use template instead of itemTemplate. NEVER use url instead of src on image/avatar.
 
 ---
 
