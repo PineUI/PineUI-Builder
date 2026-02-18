@@ -863,7 +863,7 @@
     async function autoSave(schema, prompt) {
       if (!currentProjectId) currentProjectId = generateSessionId();
       try {
-        await fetch('/api/projects', {
+        const res = await fetch('/api/projects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -873,6 +873,10 @@
             prompt,
           }),
         });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+          throw new Error(err.error);
+        }
         history.pushState({ id: currentProjectId }, '', `/projects/${currentProjectId}`);
         document.getElementById('save-btn').style.display = 'flex';
       } catch (err) {
@@ -1193,6 +1197,10 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: currentProjectId, schema: currentSchema, name, prompt: currentPrompt }),
         });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+          throw new Error(err.error);
+        }
         const project = await res.json();
         showToast(`Saved! ID: ${project.id}`, project.url);
       } catch (err) {

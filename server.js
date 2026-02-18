@@ -62,6 +62,16 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static('public'));
 
+// Always return JSON errors (never HTML) for API routes
+app.use('/api', (err, req, res, next) => {
+  const status = err.status || err.statusCode || 500;
+  const message = err.type === 'entity.too.large'
+    ? 'Schema too large (max 2mb)'
+    : err.message || 'Internal server error';
+  log.err(`API error on ${req.method} ${req.path}: ${message}`);
+  res.status(status).json({ error: message });
+});
+
 // ── Rate limit ────────────────────────────────────────────────────────────────
 const limiter = rateLimit({
   windowMs: 60 * 1000,
